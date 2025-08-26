@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>El Diario de Rosario</title>
+<style>
+  :root{
+    --bg:radial-gradient(120% 90% at 30% 20%, #fdeaf1 0%, #f8e6ee 50%, #f3dce8 100%); /* pastel pink background */
+    --gold:#fbbf24; /* amber-400 */
+    --gold-2:#f59e0b; /* amber-500 */
+    --ink:#000000; /* amber-100-ish for text */
+    --frame1: rgba(255,215,0,0.85);
+    --frame2: rgba(255,215,0,0.25);
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);}
+  button,input,textarea,label{font:inherit}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right));padding-top:calc(16px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+  .book{position:relative;width:100%;max-width:1100px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.45)}
+  .page{position:absolute;inset:0}
+  .hidden{display:none}
+  /* Background frame */
+  .gold-frame{position:absolute;inset:12px;border-radius:12px;pointer-events:none;display:none}
+  /* Buttons */
+  .icon{width:24px;height:24px;display:block}
+  .btn{border:1px solid rgba(255,215,0,.35);background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#111827;border-radius:999px;padding:10px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,.35);cursor:pointer;position:relative;z-index:2}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn-chip{border:1px solid rgba(255,215,0,.35);background:rgba(17,24,39,.5);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer}
+  .grid{display:grid;gap:12px}
+  .grid-2{grid-template-columns:1fr auto auto;align-items:center}
+  .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .photo{aspect-ratio:1/1;width:100%;object-fit:cover;border-radius:10px}
+  .pad{padding:12px}
+  .title-badge{position:absolute;left:50%;transform:translateX(-50%);bottom:32px;pointer-events:none;background:rgba(0,0,0,.25);border:1px solid rgba(255,215,0,.6);padding:6px 12px;border-radius:12px;font-weight:700;text-shadow:0 1px 0 #b8860b,0 2px 0 #a67c00,0 3px 1px rgba(0,0,0,.5),0 0 5px rgba(255,215,0,.5)}
+  /* Flip animation */
+  .stage{perspective:1600px}
+  .sheet{position:absolute;inset:0;transform-style:preserve-3d}
+  .flip-next{animation:flipNext .9s cubic-bezier(.22,.61,.36,1)}
+  .flip-prev{animation:flipPrev .9s cubic-bezier(.22,.61,.36,1)}
+  @keyframes flipNext{from{transform:rotateY(0)}50%{box-shadow:0 0 120px rgba(0,0,0,.3) inset}to{transform:rotateY(-180deg)}}
+  @keyframes flipPrev{from{transform:rotateY(0)}50%{box-shadow:0 0 120px rgba(0,0,0,.3) inset}to{transform:rotateY(180deg)}}
+  .edge-shadow{position:absolute;inset:0;pointer-events:none}
+  /* Modal PIN */
+  .modal{position:absolute;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.open{display:flex}
+  .card{background:rgba(17,24,39,.95);border:1px solid rgba(255,215,0,.3);border-radius:16px;max-width:400px;width:100%;padding:20px;box-shadow:0 30px 60px rgba(0,0,0,.6)}
+  .kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .kbd button{padding:12px;border-radius:10px;border:1px solid rgba(255,215,0,.35);background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#111827;font-weight:700}
+  .row{display:flex;gap:8px;align-items:center}
+  .spacer{height:10px}
+  /* Inputs */
+  .i{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:8px;color:var(--ink);text-align:center}
+  textarea.i{min-height:160px;resize:vertical;text-align:center}
+  /* Background helpers */
+  .bg{position:absolute;inset:0;background-size:cover;background-position:center;pointer-events:none}
+  /* --- Responsive móvil --- */
+  @media (max-width: 640px) {
+    .wrap{padding:8px;padding-left:calc(8px + env(safe-area-inset-left));padding-right:calc(8px + env(safe-area-inset-right));padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+    .book{height:calc(100svh - 24px);width:auto;max-width:none}
+    .pad{padding:10px}
+    .grid-2{grid-template-columns:1fr;gap:8px}
+    .photos{grid-template-columns:repeat(2,1fr)}
+    .btn{padding:14px}
+    .icon{width:22px;height:22px}
+    .title-badge{bottom:12px;font-size:14px;padding:6px 10px}
+    #index-list{max-height:55%;-webkit-overflow-scrolling:touch}
+    .i{font-size:16px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="book stage" id="book">
+    <!-- Flip layer -->
+    <div class="sheet" id="sheet" style="display:none"></div>
+
+    <!-- P0: Portada -->
+    <section class="page" id="p0">
+      <div class="bg" id="bg-cover" style="background-image:url('Portada.png')"></div>
+      <div class="gold-frame"></div>
+      <div class="title-badge">EL DIARIO DE ROSARIO</div>
+      <button class="btn" id="to-index" title="Ir al índice" style="position:absolute;bottom:8px;left:8px">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </section>
+
+    <!-- P1: Índice -->
+    <section class="page hidden" id="p1">
+      <div class="bg" id="bg-index" style="background-image:url('Vista derecha.png')"></div>
+      <div class="gold-frame"></div>
+      <div class="pad" style="position:relative;z-index:1;height:100%">
+        <div class="row" style="margin:220px 300px 20px 240px">
+          <h2 style="margin:0">Índice</h2>
+          
+        </div>
+        <div id="index-pager" class="row" style="justify-content:center;gap:8px;margin:12px 84px 8px 90px"></div>
+        <ul id="index-list" style="list-style:none;margin:20px 50px 20px 240px;padding:0;max-height:60%;overflow:auto;border-top:1px solid rgba(255,215,0,.2)"></ul>
+        <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px">
+          <button class="btn" id="back-cover" title="Volver a portada">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="btn" id="next-day-index" title="Ir al día siguiente">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div style="position:absolute;bottom:8px;right:8px">
+          <button class="btn" id="new-today" title="Escribir entrada de hoy">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- P2: Página de escritura -->
+    <section class="page hidden" id="p2">
+      <div class="bg" id="bg-page"></div>
+      <div class="gold-frame"></div>
+      <div class="pad" style="position:relative;z-index:1;height:100%">
+        <div class="grid grid-2">
+          <input id="title" class="i" placeholder="Título de la entrada"/>
+          <input id="date" class="i" type="date"/>
+          <label class="btn-chip">Fondo de este día<input type="file" id="inp-entry-bg" accept="image/*" style="display:none"></label>
+        </div>
+        <div class="spacer"></div>
+        <textarea id="content" class="i" placeholder="Escribe aquí..."></textarea>
+        <div class="spacer"></div>
+        <div>
+          <div style="margin-bottom:6px;font-size:14px;opacity:.9">Fotos</div>
+          <div class="photos" id="photos"></div>
+          <label class="btn-chip" style="margin-top:8px">Subir fotos<input type="file" id="inp-photos" accept="image/*" multiple style="display:none"></label>
+        </div>
+
+        <!-- Navegación entre días existentes -->
+        <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:10px">
+          <button class="btn" id="prev-day" title="Día anterior">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="btn" id="next-day" title="Día siguiente">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <div style="position:absolute;bottom:16px;right:16px;display:flex;gap:8px">
+          <button class="btn" id="save">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V7a2 2 0 012-2h11l5 5v9a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v4h8"/></svg>
+          </button>
+          <button class="btn" id="to-index-from-page" title="Volver al índice">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal PIN -->
+    <div class="modal" id="pin-modal">
+      <div class="card">
+        <h3 style="margin-top:0;margin-bottom:8px">Protegido por PIN</h3>
+        <p style="margin:0 0 10px;opacity:.9">Introduce el PIN (4 dígitos)</p>
+        <input id="pin-input" class="i" type="password" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center;letter-spacing:4px;font-size:20px"/>
+        <div class="kbd" id="pin-kbd"></div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px">
+          <button class="btn-chip" id="pin-cancel">Cancelar</button>
+          <button class="btn" id="pin-ok">Confirmar</button>
+        </div>
+        <div id="pin-error" style="color:#fecaca;margin-top:8px;min-height:18px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (sel,root=document)=>root.querySelector(sel);
+  const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+  const PIN = '2323';
+  const state = {
+    page: 0,
+    indexPage: 0,
+    entries: [], // {id,date,title,content,photos:[],bg?:dataUrl}
+    currentId: null,
+    backgrounds: {
+      coverUrl: 'Portada.png',
+      indexUrl: 'Vista derecha.png',
+      pageGlobalUrl: null,
+      pageLeftUrl: 'Vista izquierda.png',
+      pageRightUrl: 'Vista derecha.png',
+      perDay: {} // date->dataUrl
+    },
+    editor: {title:'',date: todayISO(), content:'', photos:[]},
+    pageBgOverride: null
+  };
+
+  // ---------- Persistence (localStorage) ----------
+  const LS_KEY = 'diario_rosario_v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY)||'null');
+    if(saved){ Object.assign(state, saved); }
+  } catch(e) {}
+  function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+  // ---------- Helpers ----------
+  // Intento robusto para localizar imágenes por varios nombres posibles
+  function resolveImageCandidates(candidates, onFound){
+    let i = 0;
+    const probe = () => {
+      if(i >= candidates.length) return;
+      const url = candidates[i++];
+      const img = new Image();
+      img.onload = () => { onFound && onFound(url); };
+      img.onerror = () => { probe(); };
+      img.src = url;
+    };
+    probe();
+  }
+  function todayISO(){ const n=new Date(); const d=new Date(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())); return d.toISOString().slice(0,10);} 
+  function addDaysISO(s,days){ const [y,m,d]=s.split('-').map(n=>+n); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+days); return dt.toISOString().slice(0,10);} 
+  function sortEntries(){ state.entries.sort((a,b)=> a.date.localeCompare(b.date)); }
+  function byId(id){ return state.entries.find(e=>e.id===id); }
+  function byDate(date){ return state.entries.find(e=>e.date===date); }
+
+  function setBg(el, url){ el.style.backgroundImage = url ? `url("${url}")` : 'none'; }
+
+  // ---------- Views ----------
+  const p0 = $('#p0'), p1=$('#p1'), p2=$('#p2');
+  const bgCover=$('#bg-cover'), bgIndex=$('#bg-index'), bgPage=$('#bg-page');
+
+  function updateBackgrounds(){
+    setBg(bgCover, state.backgrounds.coverUrl);
+    setBg(bgIndex, state.backgrounds.indexUrl || state.backgrounds.coverUrl);
+    const perDay = state.backgrounds.perDay[state.editor.date];
+    // Alternancia izquierda/derecha según la posición del día en el índice
+    const sorted=[...state.entries].sort((a,b)=>a.date.localeCompare(b.date));
+    const pos = sorted.findIndex(e=>e.date===state.editor.date);
+    const alt = (pos === -1 ? state.backgrounds.pageRightUrl : (pos % 2 === 0 ? state.backgrounds.pageRightUrl : state.backgrounds.pageLeftUrl));
+    const override = state.pageBgOverride;
+    const chosen = override || perDay || state.backgrounds.pageGlobalUrl || alt || state.backgrounds.pageRightUrl;
+    setBg(bgPage, chosen);
+    state.pageBgOverride = null;
+  }
+
+  function renderIndex(){
+    const ul = $('#index-list'); ul.innerHTML=''; sortEntries();
+    if(!state.entries.length){
+      const li=document.createElement('li'); li.style.padding='10px 0'; li.textContent='Aún no hay días guardados. Crea tu primera entrada.'; ul.appendChild(li); return;
+    }
+    state.entries.forEach(e=>{
+      const li=document.createElement('li'); li.style.padding='10px 0'; li.style.borderBottom='1px solid rgba(255,215,0,.15)';
+      const left=document.createElement('button'); left.className='btn-chip'; left.style.background='transparent'; left.style.border='none'; left.style.padding='0'; left.style.textAlign='left'; left.style.color='inherit'; left.style.cursor='pointer';
+      left.innerHTML=`<div style="font-weight:600">${e.title||`Día ${e.date}`}</div><div style="opacity:.85;font-size:14px">${e.date}</div>`;
+      left.onclick=()=>{ openEntry(e.id); };
+      const openBtn=document.createElement('button'); openBtn.className='btn'; openBtn.title='Abrir'; openBtn.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
+      openBtn.onclick=()=>{ openEntry(e.id); };
+      const delBtn=document.createElement('button'); delBtn.className='btn'; delBtn.title='Eliminar'; delBtn.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+      delBtn.onclick=()=>{ deleteEntry(e.id); };
+      const actions=document.createElement('div'); actions.className='row'; actions.append(openBtn, delBtn);
+      const row=document.createElement('div'); row.className='row'; row.style.justifyContent='space-between'; row.append(left, actions);
+      li.append(row); ul.append(li);
+    });
+  }
+
+  function renderEditor(){
+    $('#title').value = state.editor.title||'';
+    $('#date').value = state.editor.date;
+    $('#content').value = state.editor.content||'';
+    const ph = $('#photos'); ph.innerHTML='';
+    (state.editor.photos||[]).forEach(src=>{
+      const img=new Image(); img.className='photo'; img.src=src; ph.append(img);
+    });
+
+    // nav prev/next availability
+    const sorted=[...state.entries].sort((a,b)=>a.date.localeCompare(b.date));
+    const idx = sorted.findIndex(e=>e.date===state.editor.date);
+    $('#prev-day').disabled = !(idx>0);
+    $('#next-day').disabled = !(idx>=0 && idx<sorted.length-1);
+  }
+
+  function openEntry(id){
+    const en = byId(id); if(!en) return;
+    state.currentId = id;
+    state.editor = { title: en.title||'', date: en.date, content: en.content||'', photos: en.photos||[] };
+    updateBackgrounds(); renderEditor(); showPage(2);
+  }
+
+  function createOrOpen(date){
+    const ex = byDate(date);
+    if(ex){ openEntry(ex.id); return; }
+    askPin(()=>{
+      const id = date; // simple
+      const ne = {id,date,title:`Día ${date}`,content:'',photos:[]};
+      state.entries.push(ne);
+      sortEntries();
+      state.currentId=id;
+      state.editor={title:'',date,content:'',photos:[]};
+      saveState();
+      // Forzar fondo de VISTA DERECHA al crear
+      state.pageBgOverride = state.backgrounds.pageRightUrl;
+      updateBackgrounds();
+      renderIndex();
+      renderEditor();
+      showPage(2);
+    });
+  }
+
+  function deleteEntry(id){
+    askPin(()=>{
+      const idx = state.entries.findIndex(e=>e.id===id);
+      if(idx < 0) return;
+      const delDate = state.entries[idx].date;
+      // eliminar entrada
+      state.entries.splice(idx,1);
+      // limpiar fondo por día asociado
+      if(state.backgrounds && state.backgrounds.perDay && state.backgrounds.perDay[delDate]){
+        delete state.backgrounds.perDay[delDate];
+      }
+      // si estamos viendo esa entrada, decidir adónde ir
+      if(state.currentId === id){
+        state.currentId = null;
+        if(state.page === 2){
+          if(state.entries.length){
+            sortEntries();
+            const sorted = [...state.entries].sort((a,b)=>a.date.localeCompare(b.date));
+            const target = sorted.find(e=>e.date >= delDate) || sorted[sorted.length-1];
+            openEntry(target.id);
+          } else {
+            showPage(1);
+          }
+        }
+      }
+      saveState();
+      renderIndex();
+    });
+  }
+
+  function nextExisting(fromDate){
+    const sorted=[...state.entries].sort((a,b)=>a.date.localeCompare(b.date));
+    const i = sorted.findIndex(e=>e.date===fromDate); if(i<0) return null; return sorted[i+1]||null;
+  }
+  function prevExisting(fromDate){
+    const sorted=[...state.entries].sort((a,b)=>a.date.localeCompare(b.date));
+    const i = sorted.findIndex(e=>e.date===fromDate); if(i<=0) return null; return sorted[i-1]||null;
+  }
+
+  // ---------- Navigation with flip ----------
+  let flipping=false;
+  function doFlip(direction, after){ if(flipping) return; flipping=true; const sheet=$('#sheet'); sheet.style.display='block'; sheet.className='sheet '+(direction==='next'?'flip-next':'flip-prev'); setTimeout(()=>{ sheet.style.display='none'; flipping=false; after&&after(); },900); }
+  function showPage(idx){ const pages=[p0,p1,p2]; pages.forEach((p,i)=>p.classList.toggle('hidden', i!==idx)); state.page=idx; saveState(); }
+
+  // ---------- PIN Modal ----------
+  function askPin(ok){
+    const modal=$('#pin-modal');
+    const pinI=$('#pin-input');
+    const err=$('#pin-error');
+    err.textContent='';
+    pinI.value='';
+    modal.classList.add('open');
+    pinI.focus();
+
+    const cleanup=()=>{ window.removeEventListener('keydown', onKey); };
+    const cancel=()=>{ modal.classList.remove('open'); cleanup(); };
+    const onOk=()=>{ if(pinI.value===PIN){ modal.classList.remove('open'); cleanup(); ok&&ok(); } else { err.textContent='PIN incorrecto'; } };
+    const onKey=(e)=>{ if(e.key==='Enter'){ onOk(); } else if(e.key==='Escape'){ cancel(); } };
+
+    $('#pin-ok').onclick=onOk;
+    $('#pin-cancel').onclick=cancel;
+    window.addEventListener('keydown', onKey);
+
+    // teclado numérico
+    const kbd=$('#pin-kbd');
+    if(!kbd.dataset.ready){
+      kbd.dataset.ready='1';
+      const nums=[1,2,3,4,5,6,7,8,9,'←',0,'OK'];
+      nums.forEach(n=>{ const b=document.createElement('button'); b.textContent=n; b.onclick=()=>{ if(n==='←'){ pinI.value=pinI.value.slice(0,-1);} else if(n==='OK'){ onOk(); } else { if(pinI.value.length<4) pinI.value+=String(n); } }; kbd.append(b); });
+    }
+  }
+
+  // ---------- Event wiring ----------
+  $('#to-index').onclick=()=>{ doFlip('next', ()=>showPage(1)); };
+  $('#back-cover').onclick=()=>{ doFlip('prev', ()=>showPage(0)); };
+  $('#to-index-from-page').onclick=()=>{ doFlip('prev', ()=>showPage(1)); };
+
+  $('#new-today').onclick=()=> createOrOpen(todayISO());
+  $('#next-day-index').onclick=()=>{
+    const base = state.entries.length ? state.entries[state.entries.length-1].date : todayISO();
+    const target = addDaysISO(base,1);
+    const ex = byDate(target);
+    if(ex){ openEntry(ex.id); } else { createOrOpen(target); }
+  };
+
+  // editor inputs
+  $('#title').oninput=(e)=>{ state.editor.title=e.target.value; };
+  $('#date').oninput=(e)=>{ state.editor.date=e.target.value; updateBackgrounds(); renderEditor(); };
+  $('#content').oninput=(e)=>{ state.editor.content=e.target.value; };
+
+  // save requires PIN
+  $('#save').onclick=()=> askPin(()=>{
+    const d = state.editor.date; const idx = state.entries.findIndex(en=>en.date===d);
+    if(idx>=0){ state.entries[idx] = { ...state.entries[idx], title: state.editor.title, content: state.editor.content, photos: state.editor.photos } }
+    else { state.entries.push({ id:d, date:d, title: state.editor.title||`Día ${d}`, content: state.editor.content, photos: state.editor.photos }); sortEntries(); state.currentId=d; }
+    saveState(); renderIndex();
+  });
+
+  // prev/next existing day (no PIN)
+  $('#prev-day').onclick=()=>{ const t=prevExisting(state.editor.date); if(!t) return; doFlip('prev', ()=>openEntry(t.id)); };
+  $('#next-day').onclick=()=>{ const t=nextExisting(state.editor.date); if(!t) return; doFlip('next', ()=>openEntry(t.id)); };
+
+  // photos upload
+  $('#inp-photos').onchange=(e)=>{ const files=[...e.target.files]; files.forEach(f=>{ const r=new FileReader(); r.onload=()=>{ state.editor.photos.push(r.result); renderEditor(); }; r.readAsDataURL(f); }); e.target.value=''; };
+
+  // backgrounds upload
+  const bindFile = (id, setter) => { const el=$(id); if(!el) return; el.onchange=(e)=>{ const f=e.target.files && e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ setter(r.result); updateBackgrounds(); saveState(); }; r.readAsDataURL(f); e.target.value=''; } };
+  // portada
+  bindFile('#inp-cover-bg', (url)=>{ state.backgrounds.coverUrl=url; });
+  // índice (dos entradas posibles: en índice y en barra inferior)
+  bindFile('#inp-index-bg', (url)=>{ state.backgrounds.indexUrl=url; });
+  bindFile('#inp-index-bg2', (url)=>{ state.backgrounds.indexUrl=url; });
+  // interiores alternos por defecto
+  bindFile('#inp-left-bg', (url)=>{ state.backgrounds.pageLeftUrl=url; });
+  bindFile('#inp-right-bg', (url)=>{ state.backgrounds.pageRightUrl=url; });
+  // interior global
+  bindFile('#inp-page-global', (url)=>{ state.backgrounds.pageGlobalUrl=url; });
+  // fondo por día (en editor)
+  $('#inp-entry-bg').onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ state.backgrounds.perDay[state.editor.date]=r.result; updateBackgrounds(); saveState(); }; r.readAsDataURL(f); e.target.value=''; };
+
+  // intentar resolver automáticamente la portada si el archivo cambia de nombre
+  resolveImageCandidates([
+    'Portada.png','portada.png','Portada.jpg','portada.jpg',
+    'B9D83061-88DE-4F8D-99CF-1439C2AE62E6.png'
+  ], (url)=>{ state.backgrounds.coverUrl = url; console.log('[Diario] Portada encontrada:', url); setBg(bgCover,url); state.backgrounds.coverUrl = url; saveState(); });
+
+  // initial render
+  updateBackgrounds(); renderIndex(); renderEditor(); state.page = 0; state.indexPage = 0; showPage(0);
+
+  // ---- basic self-tests in console ----
+  try{
+    console.assert(addDaysISO('2025-01-31',1)==='2025-02-01','fin de mes');
+    console.assert(addDaysISO('2024-02-28',1)==='2024-02-29','bisiesto');
+    console.assert(/^\d{4}-\d{2}-\d{2}$/.test(todayISO()),'todayISO formato');
+  }catch(e){ console.warn('tests fallidos',e); }
+})();
+</script>
+</body>
+</html>
